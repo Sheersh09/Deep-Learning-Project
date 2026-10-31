@@ -14,7 +14,7 @@ and investigates whether data augmentation improves generalization.
 | **Framework** | TensorFlow / Keras |
 | **Research question** | Does data augmentation improve generalization? Which disease classes are hardest to distinguish? |
 
-See `plant-disease-classification-prd.md` for the full project plan.
+
 
 ## Results
 
@@ -111,6 +111,101 @@ python src/train.py
 python src/evaluate.py
 ```
 
+## Predict one image with the saved baseline model
+
+From the project root, run:
+
+```
+python -m src.predict_local "path/to/tomato-leaf.jpg"
+```
+
+The command loads `outputs/models/model_baseline.keras` without training or
+running evaluation, then prints JSON with `predicted_class` and a probability
+for each class. Accepted image formats are JPEG (`.jpg` or `.jpeg`), PNG, and
+BMP. The output index order is `Tomato___Early_blight`,
+`Tomato___Late_blight`, then `Tomato___healthy`. Images are converted to RGB,
+resized to 128×128 with nearest-neighbor interpolation, and scaled by `1/255`,
+matching evaluation. Invalid or unreadable images produce an error and a
+nonzero exit code.
+
+## Inference API
+
+Install the API dependencies and start one local server process from the
+project root:
+
+```
+pip install -r requirements-inference.txt
+python -m uvicorn src.api:app --host 127.0.0.1 --port 8000 --workers 1
+```
+
+Open `http://127.0.0.1:8000/docs` for the API documentation. Example requests
+from a terminal with `curl` (use `curl.exe` in PowerShell):
+
+```
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/ready
+curl http://127.0.0.1:8000/version
+curl -F "file=@path/to/tomato-leaf.jpg" http://127.0.0.1:8000/predict
+```
+
+`POST /predict` accepts one JPEG, PNG, or BMP image in the multipart `file`
+field, up to 10 MiB and 20 million decoded pixels. It returns the predicted
+class, probabilities for all three classes, and a short hash-based
+`model_version`. `GET /version` returns that identifier, the full model
+artifact SHA-256, and `application_version` (`0.1.0`). `GET /health` reports
+process liveness; `GET /ready` returns 503 if the baseline model did not load
+at startup. Invalid images return 400, oversized images 413, and unexpected
+inference failures 500. Restart the server after correcting a model-loading
+failure.
+
+## Tests
+
+Install the inference, frontend, and test dependencies, then run the fast suite
+from the project root. These tests use generated images and mocks; they do not
+need the dataset or a model artifact:
+
+```
+pip install -r requirements-inference.txt -r requirements-frontend.txt -r requirements-test.txt
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+Run the saved-model smoke test separately when
+`outputs/models/model_baseline.keras` is available. It loads the real model
+and predicts one generated image, without checking a disease label:
+
+```
+python -m unittest discover -s tests -p "model_smoke.py" -v
+```
+
+The fast suite is the intended required CI check; the model smoke test can run
+as a separate artifact-aware check. Backend tests import TensorFlow, while the
+frontend test file can run with frontend dependencies alone.
+
+## Streamlit frontend
+
+The frontend calls the FastAPI service over HTTP and does not load the model.
+Install its separate dependencies:
+
+```
+pip install -r requirements-frontend.txt
+```
+
+Start the API as shown above in one terminal. In a second terminal, run:
+
+```
+python -m streamlit run src/frontend.py --server.port 8501
+```
+
+Open `http://localhost:8501`, upload one JPG, JPEG, PNG, or BMP image, and
+click **Predict**. The frontend previews readable images and shows the class,
+all three probabilities, and model version. Uploads are limited to 10 MiB;
+images that cannot be previewed safely are rejected before the API call.
+
+The frontend defaults to `http://127.0.0.1:8000` for the API. To use another
+backend in PowerShell, set `$env:TOMATO_API_URL="http://host:port"` before
+starting Streamlit. The API's Swagger UI remains available at
+`http://127.0.0.1:8000/docs` when using the default backend.
+
 ## Outputs
 
 - `outputs/figures/class_distribution.png` — image counts per class
@@ -133,6 +228,18 @@ python src/evaluate.py
   weight initialization). Given the visible instability in the augmented
   model's validation curve, re-running would likely shift the exact numbers
   somewhat — treat the specific percentages as indicative, not exact.
+
+## Model Limitations and Image Guidelines
+
+This CNN was trained and evaluated on the PlantVillage tomato leaf dataset, which primarily contains individual leaves photographed against relatively uniform backgrounds.
+
+For more reliable predictions, users are encouraged to:
+- Upload a clear image of a single tomato leaf.
+- Prefer a plain, uniform background similar to PlantVillage images.
+- Ensure the leaf is well-lit and clearly visible.
+- Avoid images containing multiple overlapping leaves, complex backgrounds, or excessive shadows.
+
+**Important:** The model has not been validated for reliable performance on real-world field photographs. Predictions are experimental and should not be treated as definitive plant-disease diagnoses.
 
 ## Acknowledgments
 

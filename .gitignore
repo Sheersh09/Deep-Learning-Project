@@ -5,4 +5,12 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+*.pptx
 /data/
+/*_testimage.jpg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
