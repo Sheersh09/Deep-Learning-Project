@@ -1,0 +1,10 @@
+**
+!Dockerfile.api
+!requirements-inference.txt
+!src/
+!src/api.py
+!src/inference.py
+!src/model.py
+!outputs/
+!outputs/models/
+!outputs/models/model_baseline.keras

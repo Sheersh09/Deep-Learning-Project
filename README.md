@@ -15,7 +15,7 @@ The app classifies a tomato leaf as **early blight**, **late blight**, or **heal
 Leaf image → Streamlit → FastAPI → saved CNN → class + probabilities
 ```
 
-This is a local, two-process application. Docker, CI/CD, cloud deployment, and monitoring are planned work.
+This application also runs locally with Docker Compose. Both service images and containers have been built and verified. CI/CD, public cloud deployment, and monitoring are planned work.
 
 ## Try it locally
 
@@ -40,6 +40,28 @@ python -m streamlit run src/frontend.py --server.port 8501
 Open `http://localhost:8501` and upload one JPG/JPEG, PNG, or BMP image. API docs are at `http://127.0.0.1:8000/docs`. The saved model is already under `outputs/models/`; no training dataset is needed to run the app. For CLI prediction, use `python -m src.predict_local "path/to/leaf.jpg"`.
 
 On macOS/Linux, replace the first two setup commands with `python3 -m venv .venv` and `source .venv/bin/activate`.
+
+## Run with Docker Compose
+
+From the repository root, build and start the two services:
+
+```powershell
+docker compose config
+docker compose build
+docker compose up -d --wait
+docker compose ps
+```
+
+Open `http://localhost:8501` for the frontend and `http://localhost:8000/docs` for the API. Upload one tomato leaf image and click **Predict**. The backend image includes the tracked baseline model; neither image needs the training dataset. Compose sets `TOMATO_API_URL=http://backend:8000` so the frontend reaches the API over the Compose network. The backend health check uses `/ready`, which stays unavailable if the model fails to load, and the frontend starts only after the backend is healthy.
+
+To inspect logs or stop the services:
+
+```powershell
+docker compose logs --tail=100 backend frontend
+docker compose down
+```
+
+Both services run as non-root users. Ports 8000 and 8501 are published only on the host's loopback interface for local development. The separate Python workflow above remains available.
 
 ## Engineering details
 
@@ -66,7 +88,7 @@ python -m unittest discover -s tests -p "model_smoke.py" -v
 ## Roadmap
 
 - [x] Local inference API, browser client, and automated tests
-- [ ] Package the API and UI with Docker
+- [x] Verify the Docker Compose build and runtime for the API and UI
 - [ ] Add CI checks and a release pipeline
 - [ ] Deploy to cloud infrastructure and add monitoring
 - [ ] Explore service boundaries as the deployment grows
